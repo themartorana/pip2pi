@@ -85,44 +85,81 @@ def dir2pi(argv=sys.argv):
                 packages/simple/foo/foo-1.2.tar.gz
         """))
         return 1
-    pkgdir = argv[1]
-    if not os.path.isdir(pkgdir):
-        raise ValueError("no such directory: %r" %(pkgdir, ))
+
+
     pkgdirpath = lambda *x: os.path.join(pkgdir, *x)
 
-    shutil.rmtree(pkgdirpath("simple"), ignore_errors=True)
-    os.mkdir(pkgdirpath("simple"))
-    pkg_index = ("<html><head><title>Simple Index</title>"
+    # Get the package dir
+    pkgdir = argv[1]
+    if not os.path.isdir(pkgdir):
+        raise ValueError("no such directory: %r" % (pkgdir, ))
+
+    # Move any existing packages in to the appropriate directory structure
+    # Should be packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.tar.*
+    source_dir = pkgdirpath('packages', 'source')
+    print pkgdirpath('*.tar.gz')
+    listings = glob.glob(pkgdirpath('*.tar.*'))  # .gz or .bz2
+    for listing in listings:
+        file_name = listing.split('/')[-1]
+        pkg_name, pkg_rest = file_to_package(file_name)
+        pkg_move_path = os.path.join(source_dir, pkg_name[0].upper(), pkg_name)
+        if not os.path.exists(pkg_move_path):
+            os.makedirs(pkg_move_path)
+
+        file_end_result = os.path.join(pkg_move_path, file_name)
+        if os.path.exists(file_end_result):
+            os.remove(file_end_result)
+        shutil.move(listing, file_end_result)
+    
+    # Simple - crawl the packages directory, recreating index files
+    # and the main index file, for all existing packages
+    simple_path = pkgdirpath("simple")
+    shutil.rmtree(simple_path, ignore_errors=True)
+    os.makedirs(simple_path)
+    simple_pkg_index = ("<html><head><title>Simple Index</title>"
                  "<meta name='api-version' value='2' /></head><body>\n")
 
-    for file in os.listdir(pkgdir):
-        pkg_filepath = os.path.join(pkgdir, file)
-        if not os.path.isfile(pkg_filepath):
-            continue
-        pkg_basename = os.path.basename(file)
-        if pkg_basename.startswith("."):
-            continue
-        pkg_name, pkg_rest = file_to_package(pkg_basename, pkgdir)
-        pkg_dir = pkgdirpath("simple", pkg_name)
-        if not os.path.exists(pkg_dir):
-            os.mkdir(pkg_dir)
-        pkg_new_basename = "-".join([pkg_name, pkg_rest])
-        symlink_target = os.path.join(pkg_dir, pkg_new_basename)
-        symlink_source = os.path.join("../../", pkg_basename)
-        if hasattr(os, "symlink"):
-            os.symlink(symlink_source, symlink_target)
-        else:
-            shutil.copy2(pkg_filepath, symlink_target)
+    # Helper function to walk a directory tree and finds all the files
+    def _all_files(directory):
+        for path, dirs, files in os.walk(directory):
+            for f in files:
+                yield os.path.join(path, f)
+
+    pkg_paths = [os.path.dirname(f)
+        for f in _all_files(source_dir)
+            if f.endswith('.tar.gz')
+            or f.endswith('.tar.bz2')]
+    unique_paths = [f for f in sorted(set(pkg_paths))]
+    
+    # For each unique packages/source/<P>/<PackageName>/ folder
+    for path in unique_paths:
+        pkg_versions = glob.glob(os.path.join(path, '*.tar.*'))
+        pkg_name = path.split('/')[-1]
+        
+        simple_pkg_path = os.path.join(simple_path, pkg_name)
+        os.makedirs(simple_pkg_path)
         pkg_name_html = cgi.escape(pkg_name)
-        pkg_index += "<a href='{0}/'>{0}</a><br />\n".format(pkg_name_html)
-        with open(os.path.join(pkg_dir, "index.html"), "a") as fp:
-            pkg_new_basename_html = cgi.escape(pkg_new_basename)
-            fp.write("<a href='%s'>%s</a><br />\n"
-                     %(pkg_new_basename_html, pkg_new_basename_html))
-    pkg_index += "</body></html>\n"
+        pkg_path_html = os.path.join(simple_path, pkg_name)
+        simple_pkg_index += "<a href='{0}/'>{1}</a><br />\n".format(pkg_path_html, pkg_name_html)
+
+        with open(os.path.join(simple_pkg_path, "index.html"), "a") as fp:
+            fp.write('<html><head><title>Links for %s</title></head><body><h1>Links for %s</h1>\n' % (pkg_name, pkg_name))
+    
+            # Write out each version of the package found in the directory
+            for version in pkg_versions:
+                print version
+                file_name = version.split('/')[-1]
+                file_name_html = cgi.escape(file_name)
+                file_relative_path = os.path.join('../../packages/source', '/'.join(version.split('/')[-3:]))
+                fp.write('<a href="%s">%s</a><br />\n' % (file_relative_path, file_name_html))
+            fp.write('</body></html>\n')
+
+    # Close the simple index html file
+    simple_pkg_index += "</body></html>\n"
     with open(pkgdirpath("simple/index.html"), "w") as fp:
-        fp.write(pkg_index)
+        fp.write(simple_pkg_index)
     return 0
+
 
 @maintain_cwd
 def pip2tgz(argv=sys.argv):

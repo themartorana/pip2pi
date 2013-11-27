@@ -87,36 +87,35 @@ def dir2pi(argv=sys.argv):
         return 1
 
 
-    pkgdirpath = lambda *x: os.path.join(pkgdir, *x)
+    package_dir_path = lambda *x: os.path.join(package_dir, *x)
 
     # Get the package dir
-    pkgdir = argv[1]
-    if not os.path.isdir(pkgdir):
-        raise ValueError("no such directory: %r" % (pkgdir, ))
+    package_dir = argv[1]
+    if not os.path.isdir(package_dir):
+        raise ValueError("no such directory: %r" % (package_dir, ))
 
     # Move any existing packages in to the appropriate directory structure
     # Should be packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.tar.*
-    source_dir = pkgdirpath('packages', 'source')
-    print pkgdirpath('*.tar.gz')
-    listings = glob.glob(pkgdirpath('*.tar.*'))  # .gz or .bz2
-    for listing in listings:
-        file_name = listing.split('/')[-1]
+    source_dir = package_dir_path('packages', 'source')
+    all_packages = glob.glob(package_dir_path('*.tar.*'))  # .gz or .bz2
+    for package in all_packages:
+        file_name = package.split('/')[-1]
         pkg_name, pkg_rest = file_to_package(file_name)
         pkg_move_path = os.path.join(source_dir, pkg_name[0].upper(), pkg_name)
         if not os.path.exists(pkg_move_path):
             os.makedirs(pkg_move_path)
 
-        file_end_result = os.path.join(pkg_move_path, file_name)
-        if os.path.exists(file_end_result):
-            os.remove(file_end_result)
-        shutil.move(listing, file_end_result)
+        destination = os.path.join(pkg_move_path, file_name)
+        if os.path.exists(destination):
+            os.remove(destination)
+        shutil.move(package, destination)
     
     # Simple - crawl the packages directory, recreating index files
     # and the main index file, for all existing packages
-    simple_path = pkgdirpath("simple")
+    simple_path = package_dir_path("simple")
     shutil.rmtree(simple_path, ignore_errors=True)
     os.makedirs(simple_path)
-    simple_pkg_index = ("<html><head><title>Simple Index</title>"
+    simple_package_index = ("<html><head><title>Simple Index</title>"
                  "<meta name='api-version' value='2' /></head><body>\n")
 
     # Helper function to walk a directory tree and finds all the files
@@ -125,28 +124,28 @@ def dir2pi(argv=sys.argv):
             for f in files:
                 yield os.path.join(path, f)
 
-    pkg_paths = [os.path.dirname(f)
+    source_paths = [os.path.dirname(f)
         for f in _all_files(source_dir)
             if f.endswith('.tar.gz')
             or f.endswith('.tar.bz2')]
-    unique_paths = [f for f in sorted(set(pkg_paths))]
+    unique_source_paths = [f for f in sorted(set(source_paths))]
     
     # For each unique packages/source/<P>/<PackageName>/ folder
-    for path in unique_paths:
-        pkg_versions = glob.glob(os.path.join(path, '*.tar.*'))
-        pkg_name = path.split('/')[-1]
+    for path in unique_source_paths:
+        package_versions = glob.glob(os.path.join(path, '*.tar.*'))
+        package_name = path.split('/')[-1]
         
-        simple_pkg_path = os.path.join(simple_path, pkg_name)
-        os.makedirs(simple_pkg_path)
-        pkg_name_html = cgi.escape(pkg_name)
-        pkg_path_html = os.path.join(simple_path, pkg_name)
-        simple_pkg_index += "<a href='{0}/'>{1}</a><br />\n".format(pkg_path_html, pkg_name_html)
+        simple_package_path = os.path.join(simple_path, package_name)
+        os.makedirs(simple_package_path)
+        package_name_html = cgi.escape(package_name)
+        package_path_html = os.path.join(simple_path, package_name)
+        simple_package_index += "<a href='{0}/'>{1}</a><br />\n".format(package_path_html, package_name_html)
 
-        with open(os.path.join(simple_pkg_path, "index.html"), "a") as fp:
-            fp.write('<html><head><title>Links for %s</title></head><body><h1>Links for %s</h1>\n' % (pkg_name, pkg_name))
+        with open(os.path.join(simple_package_path, "index.html"), "a") as fp:
+            fp.write('<html><head><title>Links for %s</title></head><body><h1>Links for %s</h1>\n' % (package_name, package_name))
     
             # Write out each version of the package found in the directory
-            for version in pkg_versions:
+            for version in package_versions:
                 print version
                 file_name = version.split('/')[-1]
                 file_name_html = cgi.escape(file_name)
@@ -155,9 +154,9 @@ def dir2pi(argv=sys.argv):
             fp.write('</body></html>\n')
 
     # Close the simple index html file
-    simple_pkg_index += "</body></html>\n"
-    with open(pkgdirpath("simple/index.html"), "w") as fp:
-        fp.write(simple_pkg_index)
+    simple_package_index += "</body></html>\n"
+    with open(package_dir_path("simple/index.html"), "w") as fp:
+        fp.write(simple_package_index)
     return 0
 
 

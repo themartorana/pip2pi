@@ -119,9 +119,10 @@ def dir2pi(argv=sys.argv):
         raise ValueError("no such directory: %r" % (package_dir, ))
 
     # Move any existing packages in to the appropriate directory structure
-    # Should be packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.tar.*
+    # Should be packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.gz/bz2
     source_dir = package_dir_path('packages', 'source')
-    all_packages = glob.glob(package_dir_path('*.tar.*'))  # .gz or .bz2
+    all_packages = glob.glob(package_dir_path('*.gz'))
+    all_packages.extend(glob.glob(package_dir_path('*.bz2')))
     for package in all_packages:
         file_name = package.split('/')[-1]
         pkg_name, pkg_rest = file_to_package(file_name)
@@ -150,13 +151,14 @@ def dir2pi(argv=sys.argv):
 
     source_paths = [os.path.dirname(f)
         for f in _all_files(source_dir)
-            if f.endswith('.tar.gz')
-            or f.endswith('.tar.bz2')]
+            if f.endswith('.gz')
+            or f.endswith('.bz2')]
     unique_source_paths = [f for f in sorted(set(source_paths))]
     
     # For each unique packages/source/<P>/<PackageName>/ folder
     for path in unique_source_paths:
-        package_versions = glob.glob(os.path.join(path, '*.tar.*'))
+        package_versions = glob.glob(os.path.join(path, '*.gz'))
+        package_versions.extend(glob.glob(os.path.join(path, '*.bz2')))
         package_name = path.split('/')[-1]
         
         simple_package_path = os.path.join(simple_path, package_name)

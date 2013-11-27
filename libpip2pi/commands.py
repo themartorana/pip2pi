@@ -78,11 +78,13 @@ def dir2pi(argv=sys.argv):
                 $ dir2pi packages/
                 $ find packages/
                 packages/
-                packages/foo-1.2.tar.gz
+                packages/source/
+                packages/source/F/
+                packages/source/F/foo/
+                packages/source/F/foo/foo-1.2.tar.gz
                 packages/simple/
                 packages/simple/foo/
                 packages/simple/foo/index.html
-                packages/simple/foo/foo-1.2.tar.gz
         """))
         return 1
 
@@ -146,7 +148,6 @@ def dir2pi(argv=sys.argv):
     
             # Write out each version of the package found in the directory
             for version in package_versions:
-                print version
                 file_name = version.split('/')[-1]
                 file_name_html = cgi.escape(file_name)
                 file_relative_path = os.path.join('../../packages/source', '/'.join(version.split('/')[-3:]))

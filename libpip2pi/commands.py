@@ -10,6 +10,7 @@ import functools
 from subprocess import check_call
 import pkg_resources
 import glob
+import hashlib
 
 def dedent(text):
     return textwrap.dedent(text.lstrip("\n"))
@@ -56,7 +57,9 @@ def file_to_package(file, basedir=None):
         raise ValueError(msg)
     return (split[0], pkg_resources.safe_name(split[1]))
 
+
 def archive_pip_packages(path, package_cmds):
+    print '- Downloading pip packages'
     use_pip_main = False
     try:
         import pip
@@ -77,6 +80,131 @@ def archive_pip_packages(path, package_cmds):
         pip.main(cmds)
     else:
         check_call(["pip", "install", "-d", path] + package_cmds)
+
+
+def get_md5_for_package(package):
+    '''
+    Calculate the md5 hash for a file
+    at path `package` in a memory
+    efficient way
+    '''
+    m = hashlib.md5()
+    f = open(package, 'rb')
+    read_size = 65536
+    
+    buf = f.read(read_size)
+    while len(buf) > 0:
+        m.update(buf)
+        buf = f.read(read_size)
+
+    f.close()
+    return m.hexdigest()
+
+
+def move_packages_to_source_tree(package_dir):
+    '''
+    Move any existing packages in to the
+    appropriate directory structure
+    Should be:
+    packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.gz|bz2
+    '''
+    print '- Moving packages to Simple source structure'
+    source_dir = os.path.join(package_dir, 'packages', 'source')
+    all_packages = glob.glob(os.path.join(package_dir, '*.gz'))
+    all_packages.extend(glob.glob(os.path.join(package_dir, '*.bz2')))
+
+    for package in all_packages:
+        file_name = package.split('/')[-1]
+        pkg_name, pkg_rest = file_to_package(file_name)
+        pkg_move_path = os.path.join(source_dir, pkg_name[0].upper(), pkg_name)
+        if not os.path.exists(pkg_move_path):
+            os.makedirs(pkg_move_path)
+
+        destination = os.path.join(pkg_move_path, file_name)
+        if os.path.exists(destination):
+            os.remove(destination)
+        shutil.move(package, destination)
+
+
+def all_files_below_path(path):
+    '''
+    Helper function to walk a path
+    tree and finds all the files
+    '''
+    for path, dirs, files in os.walk(path):
+        for f in files:
+            yield os.path.join(path, f)
+
+
+def recreate_simple_index(package_dir):
+    '''
+    Simple - crawl the packages directory,
+    recreating index files and the main index file,
+    for all existing packages
+    '''
+    simple_index_file = os.path.join(package_dir, 'simple/index.html')
+    print '- Creating Simple index at %s' % '/'.join(simple_index_file.split('/')[-2:])
+    simple_path = os.path.join(package_dir, 'simple')
+    shutil.rmtree(simple_path, ignore_errors=True)
+    os.makedirs(simple_path)
+    
+    simple_index = '''
+        <html>
+            <head>
+                <title>Simple Index</title>"
+                 <meta name='api-version' value='2' />
+            </head>
+            <body>
+    '''
+
+    # Get a unique set of paths in the source tree
+    source_dir = os.path.join(package_dir, 'packages', 'source')
+    source_paths = [os.path.dirname(f)
+        for f in all_files_below_path(source_dir)
+            if f.endswith('.gz')
+            or f.endswith('.bz2')]
+    unique_paths = [path for path in sorted(set(source_paths))]
+    
+    # For each unique packages/source/<P>/<PackageName>/ folder
+    for path in unique_paths:
+        versions = glob.glob(os.path.join(path, '*.gz'))
+        versions.extend(glob.glob(os.path.join(path, '*.bz2')))
+        
+        package_name = path.split('/')[-1]
+        
+        package_path = os.path.join(simple_path, package_name)
+        os.makedirs(package_path)
+        package_name_html = cgi.escape(package_name)
+        simple_index += "<a href='{0}/'>{0}</a><br />\n".format(package_name_html)
+
+        with open(os.path.join(package_path, "index.html"), "a") as f:
+            f.write('''
+                <html>
+                    <head>
+                        <title>Links for %s</title>
+                    </head>
+                    <body>
+                        <h1>Links for %s</h1>
+                    ''' % (package_name, package_name))
+    
+            # Write out each version of the package found in the directory
+            for version in versions:
+                md5 = get_md5_for_package(version)
+                file_name = version.split('/')[-1]
+                file_name_html = cgi.escape(file_name)
+                file_relative_path = os.path.join('../../packages/source', '/'.join(version.split('/')[-3:]))
+                f.write('''
+                    <a href="%s#md5=%s">%s</a><br />
+                ''' % (file_relative_path, md5, file_name_html))
+            f.write('</body></html>\n')
+
+    # Close the simple index html
+    # and write it to a file
+    simple_index += '</body></html>\n'
+    with open(simple_index_file, 'w') as f:
+        f.write(simple_index)
+
+
 
 def dir2pi(argv=sys.argv):
     if len(argv) != 2:
@@ -110,78 +238,14 @@ def dir2pi(argv=sys.argv):
         """))
         return 1
 
-
-    package_dir_path = lambda *x: os.path.join(package_dir, *x)
-
     # Get the package dir
     package_dir = argv[1]
     if not os.path.isdir(package_dir):
         raise ValueError("no such directory: %r" % (package_dir, ))
 
-    # Move any existing packages in to the appropriate directory structure
-    # Should be packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.gz/bz2
-    source_dir = package_dir_path('packages', 'source')
-    all_packages = glob.glob(package_dir_path('*.gz'))
-    all_packages.extend(glob.glob(package_dir_path('*.bz2')))
-    for package in all_packages:
-        file_name = package.split('/')[-1]
-        pkg_name, pkg_rest = file_to_package(file_name)
-        pkg_move_path = os.path.join(source_dir, pkg_name[0].upper(), pkg_name)
-        if not os.path.exists(pkg_move_path):
-            os.makedirs(pkg_move_path)
-
-        destination = os.path.join(pkg_move_path, file_name)
-        if os.path.exists(destination):
-            os.remove(destination)
-        shutil.move(package, destination)
+    move_packages_to_source_tree(package_dir)
+    recreate_simple_index(package_dir)
     
-    # Simple - crawl the packages directory, recreating index files
-    # and the main index file, for all existing packages
-    simple_path = package_dir_path("simple")
-    shutil.rmtree(simple_path, ignore_errors=True)
-    os.makedirs(simple_path)
-    simple_package_index = ("<html><head><title>Simple Index</title>"
-                 "<meta name='api-version' value='2' /></head><body>\n")
-
-    # Helper function to walk a directory tree and finds all the files
-    def _all_files(directory):
-        for path, dirs, files in os.walk(directory):
-            for f in files:
-                yield os.path.join(path, f)
-
-    source_paths = [os.path.dirname(f)
-        for f in _all_files(source_dir)
-            if f.endswith('.gz')
-            or f.endswith('.bz2')]
-    unique_source_paths = [f for f in sorted(set(source_paths))]
-    
-    # For each unique packages/source/<P>/<PackageName>/ folder
-    for path in unique_source_paths:
-        package_versions = glob.glob(os.path.join(path, '*.gz'))
-        package_versions.extend(glob.glob(os.path.join(path, '*.bz2')))
-        package_name = path.split('/')[-1]
-        
-        simple_package_path = os.path.join(simple_path, package_name)
-        os.makedirs(simple_package_path)
-        package_name_html = cgi.escape(package_name)
-        package_path_html = os.path.join(simple_path, package_name)
-        simple_package_index += "<a href='{0}/'>{1}</a><br />\n".format(package_path_html, package_name_html)
-
-        with open(os.path.join(simple_package_path, "index.html"), "a") as fp:
-            fp.write('<html><head><title>Links for %s</title></head><body><h1>Links for %s</h1>\n' % (package_name, package_name))
-    
-            # Write out each version of the package found in the directory
-            for version in package_versions:
-                file_name = version.split('/')[-1]
-                file_name_html = cgi.escape(file_name)
-                file_relative_path = os.path.join('../../packages/source', '/'.join(version.split('/')[-3:]))
-                fp.write('<a href="%s">%s</a><br />\n' % (file_relative_path, file_name_html))
-            fp.write('</body></html>\n')
-
-    # Close the simple index html file
-    simple_package_index += "</body></html>\n"
-    with open(package_dir_path("simple/index.html"), "w") as fp:
-        fp.write(simple_package_index)
     return 0
 
 
@@ -211,7 +275,7 @@ def pip2tgz(argv=sys.argv):
     os.chdir(outdir)
     num_pakages = len(glob.glob('./*.tar.*'))
 
-    print("\nDone. %s archives currently saved in %r." %(num_pakages, argv[1]))
+    print('- %s packages downloaded' % num_pakages)
     return 0
 
 def pip2pi(argv=sys.argv):

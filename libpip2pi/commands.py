@@ -366,7 +366,7 @@ def pip2pi(argv=sys.argv):
         return res
 
     if is_remote:
-        parts == target.split('://')
+        parts = target.split('://')
         schema = parts[0]
         if schema.lower() == 's3':
             print('- Uploading to S3...')

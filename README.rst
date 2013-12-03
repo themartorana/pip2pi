@@ -77,16 +77,23 @@ A directory full of ``.tar.gz`` files can be turned into PyPI-compatible
     $ dir2pi packages/
     $ find packages/
     packages/
-    packages/bar-0.8.tar.gz
-    packages/baz-0.3.tar.gz
-    packages/foo-1.2.tar.gz
+    packages/source
+    packages/source/B
+    packages/source/B/bar
+    packages/source/B/bar/bar-0.8.tar.gz
+    packages/source/B/baz
+    packages/source/B/baz/baz-0.3.tar.gz
+    packages/source/F
+    packages/source/F/foo
+    packages/source/F/foo/foo-1.2.tar.gz
     packages/simple
+    packages/simple/index.html
     packages/simple/bar
-    packages/simple/bar/bar-0.8.tar.gz
+    packages/simple/bar/index.html
     packages/simple/baz
-    packages/simple/baz/baz-0.3.tar.gz
+    packages/simple/baz/index.html
     packages/simple/foo
-    packages/simple/foo/foo-1.2.tar.gz
+    packages/simple/foo/index.html
 
 
 But that's a lot of work...

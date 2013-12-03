@@ -12,8 +12,10 @@ import pkg_resources
 import glob
 import hashlib
 
+
 def dedent(text):
     return textwrap.dedent(text.lstrip("\n"))
+
 
 def maintain_cwd(f):
     @functools.wraps(f)
@@ -24,6 +26,7 @@ def maintain_cwd(f):
         finally:
             os.chdir(orig_dir)
     return maintain_cwd_helper
+
 
 def egg_to_package(file):
     """ Extracts the package name from an egg.
@@ -37,6 +40,7 @@ def egg_to_package(file):
     name = dist.project_name
     return (name, file[len(name)+1:])
 
+
 def file_to_package(file, basedir=None):
     """ Returns the package name for a given file.
 
@@ -49,11 +53,11 @@ def file_to_package(file, basedir=None):
         return egg_to_package(file)
     split = file.rsplit("-", 1)
     if len(split) != 2:
-        msg = "unexpected file name: %r " %(file, )
-        msg += "(not in 'pkg-name-version.xxx' format"
+        msg = 'unexpected file name: %r ' % file
+        msg += '(not in "pkg-name-version.xxx" format'
         if basedir:
-            msg += "; found in directory: %r" %(basedir)
-        msg += ")"
+            msg += '; found in directory: %r;' % basedir
+        msg += ')'
         raise ValueError(msg)
     return (split[0], pkg_resources.safe_name(split[1]))
 
@@ -91,7 +95,7 @@ def get_md5_for_package(package):
     m = hashlib.md5()
     f = open(package, 'rb')
     read_size = 65536
-    
+
     buf = f.read(read_size)
     while len(buf) > 0:
         m.update(buf)
@@ -147,7 +151,7 @@ def recreate_simple_index(package_dir):
     simple_path = os.path.join(package_dir, 'simple')
     shutil.rmtree(simple_path, ignore_errors=True)
     os.makedirs(simple_path)
-    
+
     simple_index = '''
         <html>
             <head>
@@ -164,14 +168,14 @@ def recreate_simple_index(package_dir):
             if f.endswith('.gz')
             or f.endswith('.bz2')]
     unique_paths = [path for path in sorted(set(source_paths))]
-    
+
     # For each unique packages/source/<P>/<PackageName>/ folder
     for path in unique_paths:
         versions = glob.glob(os.path.join(path, '*.gz'))
         versions.extend(glob.glob(os.path.join(path, '*.bz2')))
-        
+
         package_name = path.split('/')[-1]
-        
+
         package_path = os.path.join(simple_path, package_name)
         os.makedirs(package_path)
         package_name_html = cgi.escape(package_name)
@@ -186,7 +190,7 @@ def recreate_simple_index(package_dir):
                     <body>
                         <h1>Links for %s</h1>
                     ''' % (package_name, package_name))
-    
+
             # Write out each version of the package found in the directory
             for version in versions:
                 md5 = get_md5_for_package(version)
@@ -245,7 +249,7 @@ def dir2pi(argv=sys.argv):
 
     move_packages_to_source_tree(package_dir)
     recreate_simple_index(package_dir)
-    
+
     return 0
 
 

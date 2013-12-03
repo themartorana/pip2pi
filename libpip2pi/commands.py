@@ -278,6 +278,51 @@ def pip2tgz(argv=sys.argv):
     print('- %s packages downloaded' % num_pakages)
     return 0
 
+
+def upload_to_s3(s3_path, working_dir):
+    '''
+    Uploads the contents of the working dir to s3
+    '''
+    try:
+        import boto
+        from boto.s3.key import Key
+    except:
+        print 'Exception importing boto, not uploading'
+        return
+
+    # First parse out the parts
+    interesting_bits = s3_path.split('@')
+
+    keys = interesting_bits[0].split(':')
+    aws_access_key = keys[0]
+    aws_secret_access_key = keys[1]
+
+    path_info = interesting_bits[1].split('/')
+    bucket = path_info[0]
+    initial_path = '/'.join(path_info[1:])
+
+    s3_conn = boto.connect_s3(aws_access_key, aws_secret_access_key)
+    bucket = s3_conn.get_bucket(bucket)
+
+    all_files = all_files_below_path(working_dir)
+    for f in all_files:
+        relative_path = f.replace(working_dir, '')
+        if relative_path.startswith('/'):
+            relative_path = relative_path[1:]
+        s3path = os.path.join(initial_path, relative_path)
+        print('  %s' % s3path)
+
+        # Upload
+        try:
+            k = Key(bucket)
+            k.key = s3path
+            k.set_contents_from_filename(f, replace=True)
+            k.set_acl('public-read')
+        except Exception as ex:
+            print('*** There was an exception ***\n%' % ex)
+            return
+
+
 def pip2pi(argv=sys.argv):
     if len(argv) < 3:
         print(dedent("""
@@ -302,7 +347,7 @@ def pip2pi(argv=sys.argv):
 
     target = argv[1]
     pip_packages = argv[2:]
-    if ":" in target:
+    if "://" in target:
         is_remote = True
         working_dir = tempfile.mkdtemp(prefix="pip2pi-working-dir")
         atexit.register(lambda: shutil.rmtree(working_dir))
@@ -321,10 +366,19 @@ def pip2pi(argv=sys.argv):
         return res
 
     if is_remote:
-        print("copying temporary index at %r to %r..." %(working_dir, target))
-        check_call([
-            "rsync",
-            "--recursive", "--progress", "--links",
-            working_dir + "/", target + "/",
-        ])
+        parts == target.split('://')
+        schema = parts[0]
+        if schema.lower() == 's3':
+            print('- Uploading to S3...')
+            upload_to_s3(parts[1], working_dir)
+        elif schema == 'rsync':
+            target = parts[1]
+            print('- Copying temporary index at %r to %r...' % (working_dir, target))
+            check_call([
+                "rsync",
+                "--recursive", "--progress", "--links",
+                working_dir + "/", target + "/",
+            ])
+        else:
+            print('Schema "%s" unsupported at this time. Aborting.' % schema)
     return 0

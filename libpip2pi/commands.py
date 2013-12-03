@@ -110,12 +110,13 @@ def move_packages_to_source_tree(package_dir):
     Move any existing packages in to the
     appropriate directory structure
     Should be:
-    packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.gz|bz2
+    packages/source/<PackageFirstLetterUppercase>/<PackageName>/*.gz|bz2|zip
     '''
     print '- Moving packages to Simple source structure'
     source_dir = os.path.join(package_dir, 'packages', 'source')
     all_packages = glob.glob(os.path.join(package_dir, '*.gz'))
     all_packages.extend(glob.glob(os.path.join(package_dir, '*.bz2')))
+    all_packages.extend(glob.glob(os.path.join(package_dir, '*.zip')))
 
     for package in all_packages:
         file_name = package.split('/')[-1]
@@ -166,13 +167,15 @@ def recreate_simple_index(package_dir):
     source_paths = [os.path.dirname(f)
         for f in all_files_below_path(source_dir)
             if f.endswith('.gz')
-            or f.endswith('.bz2')]
+            or f.endswith('.bz2')
+            or f.endswith('.zip')]
     unique_paths = [path for path in sorted(set(source_paths))]
 
     # For each unique packages/source/<P>/<PackageName>/ folder
     for path in unique_paths:
         versions = glob.glob(os.path.join(path, '*.gz'))
         versions.extend(glob.glob(os.path.join(path, '*.bz2')))
+        versions.extend(glob.glob(os.path.join(path, '*.zip')))
 
         package_name = path.split('/')[-1]
 

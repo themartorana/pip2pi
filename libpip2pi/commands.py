@@ -156,7 +156,7 @@ def recreate_simple_index(package_dir):
     simple_index = '''
         <html>
             <head>
-                <title>Simple Index</title>"
+                <title>Simple Index</title>
                  <meta name='api-version' value='2' />
             </head>
             <body>
@@ -305,11 +305,11 @@ def upload_to_s3(s3_path, working_dir):
     aws_secret_access_key = keys[1]
 
     path_info = interesting_bits[1].split('/')
-    bucket = path_info[0]
+    bucket_name = path_info[0]
     initial_path = '/'.join(path_info[1:])
 
     s3_conn = boto.connect_s3(aws_access_key, aws_secret_access_key)
-    bucket = s3_conn.get_bucket(bucket)
+    bucket = s3_conn.get_bucket(bucket_name)
 
     all_files = all_files_below_path(working_dir)
     for f in all_files:
@@ -328,6 +328,11 @@ def upload_to_s3(s3_path, working_dir):
         except Exception as ex:
             print('*** There was an exception ***\n%' % ex)
             return
+
+    print('- Done. Access your simple index at http://%s.s3-website-us-east-1.amazonaws.com/%s/simple/' % (
+        bucket_name,
+        initial_path
+    ))
 
 
 def pip2pi(argv=sys.argv):
